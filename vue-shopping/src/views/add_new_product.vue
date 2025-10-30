@@ -1,38 +1,47 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import axios from 'axios'
 
 interface Product {
   id: string
   name: string
   price: number
-  stock: number
+  reserve: number
 }
 
 const products = ref<Product[]>([])
-const product = ref<Product>({
-  id: '',
-  name: '',
-  price: 0,
-  stock: 0,
-})
+const product = ref<Product>({ id: '', name: '', price: 0, reserve: 0 })
+const loading = ref(false)
+const errorMsg = ref('')
+
+// 取得商品清單（從資料庫）
+async function fetchProducts() {
+  loading.value = true
+  errorMsg.value = ''
+  try {
+    const { data } = await axios.get<Product[]>('http://localhost:3000/api/products')
+    products.value = data
+  } catch (err) {
+    console.error(err)
+    errorMsg.value = '商品清單無資料'
+  } finally {
+    loading.value = false
+  }
+}
 
 async function addProduct() {
   try {
-    // 呼叫後端 API，把表單寫進資料庫裡
     await axios.post('http://localhost:3000/api/products', product.value)
-
-    // 前端同步更新列表
-    products.value.push({ ...product.value })
-
-    // 清空表單＋提示
-    product.value = { id: '', name: '', price: 0, stock: 0 }
-    alert('商品已新增成功！')
+    await fetchProducts() // 重新抓取最新資料
+    product.value = { id: '', name: '', price: 0, reserve: 0 }
+    alert('商品已成功新增')
   } catch (err) {
     console.error(err)
-    alert('新增商品失敗，請確認是否後端有問題')
+    alert('新增商品失敗，是否後端有問題')
   }
 }
+
+onMounted(fetchProducts)
 </script>
 
 <template>
@@ -57,14 +66,19 @@ async function addProduct() {
 
       <div class="form-item">
         <label>庫存：</label>
-        <input type="number" v-model.number="product.stock" min="0" required />
+        <input type="number" v-model.number="product.reserve" min="0" required />
       </div>
 
       <button type="submit">新增商品</button>
     </form>
 
+    <div style="margin-top: 16px">
+      <span v-if="loading">載入中…</span>
+      <span v-else-if="errorMsg" style="color: red">{{ errorMsg }}</span>
+    </div>
+
     <div v-if="products.length">
-      <h3>商品清單</h3>
+      <h3>商品清單（資料庫）</h3>
       <table>
         <thead>
           <tr>
@@ -79,7 +93,7 @@ async function addProduct() {
             <td>{{ item.id }}</td>
             <td>{{ item.name }}</td>
             <td>{{ item.price }}</td>
-            <td>{{ item.stock }}</td>
+            <td>{{ item.reserve }}</td>
           </tr>
         </tbody>
       </table>
